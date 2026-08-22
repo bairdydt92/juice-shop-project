@@ -60,6 +60,7 @@ jobs:
           # Baseline scan is passive/light-touch — safe default for a first pass.
           # docs: https://www.zaproxy.org/docs/docker/baseline-scan/
           cmd_options: '-a'   # include alpha-quality passive rules too
+          allow_issue_writing: false   # we don't have issues:write permission, and we save the report as an artifact instead
 
       # ZAP writes a report file - this makes it downloadable from the
       # Actions run summary instead of only visible in the logs
