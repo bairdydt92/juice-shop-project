@@ -1,6 +1,34 @@
-      uses: semgrep/semgrep-action@v1
+name: Security Scan
+
+# Runs on every push to main, and lets you trigger it manually from the Actions tab
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  # ---------- SAST: scans the source code, no app needs to be running ----------
+  semgrep:
+    name: Semgrep (SAST)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep   # official image, always current -- avoids version-mismatch crashes
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        run: semgrep scan --config p/owasp-top-ten --output semgrep-results.txt
+        continue-on-error: true   # so findings don't fail the whole job -- we're reviewing, not gating yet
+
+      - name: Show results in log
+        run: cat semgrep-results.txt
+
+      - name: Upload Semgrep report
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          config: p/owasp-top-ten   # a solid general-purpose ruleset to start with
+          name: semgrep-report
+          path: semgrep-results.txt
 
   # ---------- DAST: needs Juice Shop actually running to attack it ----------
   zap-scan:
