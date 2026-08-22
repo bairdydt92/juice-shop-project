@@ -40,17 +40,20 @@ This skill provides instructions for Junie to create release notes from scratch 
         *   `👮 Startup Validations`: Boot/environment checks.
     *   Use **Status Icons** to mark specific types of changes:
         *   `⚡`: Significant changes to challenges that might break CTF setups or solutions.
-        *   `⚠️`: Technical breaking changes (Node.js version, renamings, config removal).
+        *   `⚠️`: Breaking changes that affect **end users** of Juice Shop (e.g., dropped Node.js version support, removed/renamed config options). Internal tooling changes (build scripts, TypeScript version, dev dependencies) are **never** ⚠️ because users do not interact with them.
         *   `📜`: Policy or licensing changes.
         *   `⭐`: Challenge difficulty levels (e.g., `⭐⭐-challenge`).
 3.  **Format the Notes**:
     *   Start with a blockquote disclaimer if there are `⚡`, `⚠️`, or `📜` changes.
     *   Use `*` for bullet points.
     *   Add `(kudos to @username)` at the end of lines for external contributors (check PR descriptions or commit logs). Neither `@J12934` nor `@bkimminich` should ever get a kudos suffix.
-    *   Reference PRs as `#number` and commits as hashes where appropriate. These must always be prefixed to the list item (e.g., `* #1234: Fixed ...` or `* abcdef: Added ...`), never suffixed.
+    *   Reference PRs as `#number` and commits as hashes where appropriate. These must always be prefixed to the list item (e.g., `* #1234: Fixed ...` or `* abcdef: Added ...`), never suffixed. Use these sparingly and only for significant or external contributions.
 4.  **Review and Refine**:
     *   Compare with the `release-notes-checklist.md`.
     *   Ensure all significant changes found in step 1 are covered.
+    *   Avoid over-detailing: Combine related changes into single bullet points (e.g., adding a challenge and its corresponding coding challenge).
+    *   Do not list bugfixes for features or challenges that were introduced in the same release.
+    *   Exclude event entries, workshop announcements, or other non-product references.
 
 ## Templates
 

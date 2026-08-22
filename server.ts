@@ -242,7 +242,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     const origEnd = res.end
     // @ts-expect-error FIXME assignment broken due to seemingly void return value
     res.end = function () {
-      if (arguments.length) {
+      if (arguments.length && typeof arguments[0] === 'string') {
         const reqPath = req.originalUrl.replace(/\?.*$/, '')
 
         const currentFolder = reqPath.split('/').pop()!
@@ -263,6 +263,25 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     }
     next()
   }
+
+  /* /infrastructure directory browsing */
+  app.use('/infrastructure', serveIndexMiddleware, serveIndex('infrastructure', { icons: true, view: 'details', filter: (filename) => filename !== 'README.md' }))
+  app.use('/infrastructure', verify.accessControlChallenges())
+  app.use('/infrastructure', (req: Request, res: Response, next: NextFunction) => {
+    const filePath = path.resolve('infrastructure', path.normalize(req.path).replace(/^[\\/]+/, ''))
+    if (!filePath.startsWith(path.resolve('infrastructure')) || filePath.endsWith('README.md')) {
+      return res.status(403).end()
+    }
+    if (filePath.endsWith('.tf') || filePath.endsWith('.yml') || filePath.endsWith('Dockerfile')) {
+      fs.readFile(filePath, 'utf8', (err, data) => {
+        if (err) return next()
+        const cleaned = data.split('\n').filter(line => !line.trim().match(/^#\s*vuln-code-snippet\s/)).map(line => line.replace(/\s*#\s*vuln-code-snippet\s.*$/, '')).join('\n')
+        res.type('text/plain').send(cleaned)
+      })
+    } else {
+      express.static('infrastructure')(req, res, next)
+    }
+  })
 
   // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
   /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
@@ -300,7 +319,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     directory: path.resolve('i18n'),
     cookie: 'language',
     defaultLocale: 'en',
-    autoReload: true
+    autoReload: process.env.NODE_ENV !== 'test'
   })
   app.use(i18n.init)
 
@@ -522,7 +541,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       resource.list.fetch.after((req: Request, res: Response, context: { instance: string | any[], continue: any }) => {
         for (let i = 0; i < context.instance.length; i++) {
           let description = context.instance[i].description
-          if (utils.contains(description, '<em>(This challenge is <strong>')) {
+          if (description?.includes('<em>(This challenge is <strong>')) {
             const warning = description.substring(description.indexOf(' <em>(This challenge is <strong>'))
             description = description.substring(0, description.indexOf(' <em>(This challenge is <strong>'))
             context.instance[i].description = req.__(description) + req.__(warning)
@@ -683,11 +702,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 }
 
 // Function called first to ensure that all the i18n files are reloaded successfully before other linked operations.
-restoreOverwrittenFilesWithOriginals().then(() => {
-  configureApp(app, sequelize)
-}).catch((err) => {
-  console.error(err)
-})
+if (process.env.NODE_ENV !== 'test') {
+  restoreOverwrittenFilesWithOriginals().then(() => {
+    configureApp(app, sequelize)
+  }).catch((err) => {
+    console.error(err)
+  })
+}
 
 const uploadToMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200000 } })
 const mimeTypeMap: any = {
@@ -780,6 +801,7 @@ export async function createApp (options?: { inMemoryDb?: boolean }) {
   Prometheus.register.clear()
   const testApp = express()
   testApp.set('view engine', 'hbs')
+  await restoreOverwrittenFilesWithOriginals()
   configureApp(testApp, seq)
   await seq.sync({ force: true })
   await datacreator()

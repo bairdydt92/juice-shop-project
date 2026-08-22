@@ -27,6 +27,16 @@ void describe('utils', () => {
     })
   })
 
+  void describe('queryResultToJson', () => {
+    void it('returns object with status success and passed data by default', () => {
+      assert.deepEqual(utils.queryResultToJson('test'), { status: 'success', data: 'test' })
+    })
+
+    void it('returns object with passed status and passed data', () => {
+      assert.deepEqual(utils.queryResultToJson('test', 'error'), { status: 'error', data: 'test' })
+    })
+  })
+
   void describe('extractFilename', () => {
     void it('returns standalone filename unchanged', () => {
       assert.equal(utils.extractFilename('test.exe'), 'test.exe')
@@ -157,36 +167,6 @@ void describe('utils', () => {
     }
   })
 
-  void describe('startsWith', () => {
-    void it('accepts string starting with another string', () => {
-      assert.equal(utils.startsWith('Bla Blubb', 'Bla'), true)
-    })
-
-    void it('rejects string not starting with another string', () => {
-      assert.equal(utils.startsWith('Bla Blubb', 'Lala'), false)
-    })
-  })
-
-  void describe('endsWith', () => {
-    void it('accepts string ending with another string', () => {
-      assert.equal(utils.endsWith('Bla Blubb', 'Blubb'), true)
-    })
-
-    void it('rejects string not ending with another string', () => {
-      assert.equal(utils.endsWith('Bla Blubb', 'Lala'), false)
-    })
-  })
-
-  void describe('contains', () => {
-    void it('accepts string containing another string', () => {
-      assert.equal(utils.contains('Bla Blubb', 'la Bl'), true)
-    })
-
-    void it('rejects string containing another string', () => {
-      assert.equal(utils.contains('Bla Blubb', 'Lala'), false)
-    })
-  })
-
   void describe('toISO8601', () => {
     void it('converts date to ISO 8601 representation', () => {
       assert.equal(utils.toISO8601(new Date('2025-12-15T00:00:00Z')), '2025-12-15')
@@ -219,6 +199,20 @@ void describe('utils', () => {
     })
   })
 
+  void describe('containsOrEscaped', () => {
+    void it('returns true if string contains element', () => {
+      assert.equal(utils.containsOrEscaped('abc"def', 'abc'), true)
+    })
+
+    void it('returns true if string contains escaped element', () => {
+      assert.equal(utils.containsOrEscaped('abc\\"def', 'abc"def'), true)
+    })
+
+    void it('returns false if string contains neither element nor escaped element', () => {
+      assert.equal(utils.containsOrEscaped('abcdef', 'xyz'), false)
+    })
+  })
+
   void describe('unquote', () => {
     void it('removes quotes from quoted string', () => {
       assert.equal(utils.unquote('"test"'), 'test')
@@ -240,6 +234,93 @@ void describe('utils', () => {
 
     void it('removes newlines', () => {
       assert.equal(utils.trunc('12\n3', 5), '123')
+    })
+  })
+
+  void describe('diceCoefficient', () => {
+    void it('should return 1 for identical strings', () => {
+      assert.equal(utils.diceCoefficient('abc', 'abc'), 1)
+    })
+
+    void it('should return 1 for identical strings even if they are short', () => {
+      assert.equal(utils.diceCoefficient('a', 'a'), 1)
+    })
+
+    void it('should return 0 for different strings if at least one is less than 2 characters', () => {
+      assert.equal(utils.diceCoefficient('a', 'b'), 0)
+      assert.equal(utils.diceCoefficient('a', 'abc'), 0)
+    })
+
+    void it('should return 0 for completely different strings', () => {
+      assert.equal(utils.diceCoefficient('abc', 'def'), 0)
+    })
+
+    void it('should return correct coefficient for partially overlapping strings', () => {
+      // 'night' bigrams: ni, ig, gh, ht
+      // 'nacht' bigrams: na, ac, ch, ht
+      // intersection: ht (1)
+      // score: 2 * 1 / (5 + 5 - 2) = 0.25
+      assert.equal(utils.diceCoefficient('night', 'nacht'), 0.25)
+    })
+  })
+
+  void describe('toMMMYY', () => {
+    void it('returns MMMYY representation of date', () => {
+      assert.equal(utils.toMMMYY(new Date('1980-01-02')), 'JAN80')
+      assert.equal(utils.toMMMYY(new Date('2026-12-31')), 'DEC26')
+    })
+  })
+
+  void describe('isUrl', () => {
+    void it('returns true for strings starting with http', () => {
+      assert.ok(utils.isUrl('http://test.com'))
+      assert.ok(utils.isUrl('https://test.com'))
+    })
+
+    void it('returns false for strings not starting with http', () => {
+      assert.ok(!utils.isUrl('ftp://test.com'))
+      assert.ok(!utils.isUrl('test.com'))
+    })
+  })
+
+  void describe('version', () => {
+    void it('returns package version if no module is specified', () => {
+      assert.ok(utils.version())
+    })
+
+    void it('returns module version if module is specified', () => {
+      assert.ok(utils.version('express'))
+    })
+  })
+
+  void describe('jwtFrom', () => {
+    void it('extracts token from authorization header', () => {
+      assert.equal(utils.jwtFrom({ headers: { authorization: 'Bearer 12345' } }), '12345')
+      assert.equal(utils.jwtFrom({ headers: { authorization: 'bearer abcde' } }), 'abcde')
+    })
+
+    void it('returns undefined if authorization header is missing or malformed', () => {
+      assert.equal(utils.jwtFrom({ headers: {} }), undefined)
+      assert.equal(utils.jwtFrom({ headers: { authorization: '12345' } }), undefined)
+      assert.equal(utils.jwtFrom({ headers: { authorization: 'Basic 12345' } }), undefined)
+    })
+  })
+
+  void describe('randomHexString', () => {
+    void it('returns random hex string of specified length', () => {
+      assert.equal(utils.randomHexString(10).length, 10)
+      assert.equal(utils.randomHexString(1).length, 1)
+    })
+  })
+
+  void describe('getErrorMessage', () => {
+    void it('returns message if error is an Error object', () => {
+      assert.equal(utils.getErrorMessage(new Error('Test error')), 'Test error')
+    })
+
+    void it('returns string representation if error is not an Error object', () => {
+      assert.equal(utils.getErrorMessage('Test error'), 'Test error')
+      assert.equal(utils.getErrorMessage({}), '[object Object]')
     })
   })
 })
