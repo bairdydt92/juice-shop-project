@@ -1,21 +1,4 @@
-name: Security Scan
-
-# Runs on every push to main, and lets you trigger it manually from the Actions tab
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-
-jobs:
-  # ---------- SAST: scans the source code, no app needs to be running ----------
-  semgrep:
-    name: Semgrep (SAST)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run Semgrep
-        uses: semgrep/semgrep-action@v1
+      uses: semgrep/semgrep-action@v1
         with:
           config: p/owasp-top-ten   # a solid general-purpose ruleset to start with
 
