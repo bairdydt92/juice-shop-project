@@ -1,0 +1,82 @@
+This write-up covers an automated security scan of OWASP Juice Shop using Semgrep (SAST) and OWASP ZAP (DAST), run through a GitHub Actions CI/CD pipeline. Semgrep flagged 48 findings across the
+codebase and ZAP flagged 11 across the running application. Rather than list every finding, 
+this write-up covers four I investigated in depth — one confirmed via source code review, one manually exploited using Burp Suite, and two verified and stress-tested beyond the initial scan result. 
+It also covers two real tooling issues I hit and fixed while building the pipeline itself.
+
+
+Issue 1 - Hard-coded JWT value
+Category: CWE-798 
+OWASP: A04:2025 - Cryptographic Failure and A07:2025 - Authentication Failures
+Risk: Critical as token is easily found and publically exposed. This could then be used to forge valid authentication tokens  
+Location: lib/insecurity.ts 
+
+SAST report identified a potential hard-coded JWT token in the lib/insecurity.ts file. I then traced this location and verified that there is a hardcoded RSA private JTW token present. 
+This is very dangerous as the token could be used by attackers to forge valid authentication tokens without needing admin access. 
+
+FIX:
+move the key to an environment variable or secrets manager
+rotate the key periodically in case it gets exposed (the existing key should be treated as compromised and existing users/sessions should be checked for authenticity of valid users/actions)
+Private keys should never be committed to version control or shared insecurely
+
+Issue 2 -  SQL injection via product Search
+Category: CWE - 89
+OWASP: A05:2025 - Injection
+Risk: Medium
+Location: routes/search.ts
+
+several sql injections were found as part of the report such as one for logging in allow users to access admin profile, However the one being discussed affects the search field. 
+This was verified and checked with the aid of Burp suite free edition. The request was sent to repeater where the SQL injection was investigated. initially trying to break out the query to perform
+the attack took a few attempts due to the nature and complexity of the query. Once this was achieved some interesting results happened. 
+Using the order by (number) format I could identify how many columns was present in the database table. This allowed me to then use a union select query. 
+Interestingly when I entered the correct number of columns I was met with an unexpected redirect error. 
+I then changed the length of my query string - same error
+lowered the nulls - normal sql error for mismatched column number. Increased back to the number and redirect error
+This is a weird anomaly and blocked me from proceeding with my injection attempt. 
+The error still confirmed the query structure and column boundaries, which would be a useful starting point for further exploitation, though I didn't pursue this further in the time available.
+
+Fix: earlier sanitisation of inputs from a user to prevent the initial number of columns being found
+
+Note: this same pattern (raw string interpolation into Sequelize queries rather than parameterization) also appears in routes/login.ts, indicating this is a systemic issue rather than an isolated one.
+ A fix should apply parameterized queries across all .sequelize.query() usage in the codebase, not just this instance."
+
+Issue 3 - Content Security Policy (CSP) Header Not Set [10038] x 5 
+Category: CWE-693
+OWASP: A02:2025 - Security Misconfiguration 
+Risk: Low
+Location: Application-wide — missing on all HTTP responses (verified via browser dev tools across multiple pages)
+
+CSP header was flagged as not being set so I looked into dev tools on the page to confirm if this was true or not and quickly discovered it was a true positive.
+
+FIX: add in a CSP, this is classed as low as it is more of a defence than vulnerability however it could easily be combined with XSS which would severely impact the application.
+
+Issue 4 - Cross-Domain Misconfiguration [10098]
+Category: CWE-942 and CWE-16
+OWASP: A02:2025 - Security Misconfiguration 
+Risk: High (initially) Low (after investigation)
+Location: Global CORS configuration (likely server.ts) — reproduced against both /rest/products/search (unauthenticated) and /rest/user/whoami (authenticated)
+
+
+This is often referred to as a CORS misconfiguration (Cross Origin Resource Sharing). This was also initially checked on dev tools and confirmed to be using * wild card. I wanted
+to check the impact of this further so I sent the request to Burp Suite and added in an origin header which contained an external point of origin. It returned a valid response. 
+I then logged into the application and tried the same test with a request that contained user information and JWT tokens etc. It worked and could see the admin data I was logged in with. 
+
+Since browsers don't automatically attach authorisation headers,and Juice -shop is using header-based JWT authentication rather than cookies, this isn't exploitable alone and would require chaining with something else
+such as XSS bug that exposes the token to cause any impact. 
+
+Fix: Replace the wildcard with an explicit allow-list of trusted origins 
+
+
+Extras:
+Initially there were some issues with setting up the scans due to version mismatches. The tools were then updated to the correct versions to fix this issue
+Zap had further issues where it was trying to automatically open GitHub issues based on what it found, but the repo blocked it. Zap was updated to reflect this and prevent this step
+
+
+Conclusion:
+This project was less about running two scanning tools and more about learning to judge what they find and investigate them. 
+Both tools produced findings that needed me to follow-up — a scanner can flag a pattern, but confirming whether it's actually exploitable, and how severe it really is, took manual verification each time. 
+The hard-coded JWT key required tracing the variable back to its source rather than trusting the tool's label.
+The search injection required manually crafting and adjusting payloads in Burp, and hitting a genuine dead end I couldn't fully explain.
+The CORS finding looked critical at first glance but turned out to be only partially exploitable once I understood how the app actually authenticates users. 
+That process — checking claims rather than accepting them, and being willing to say "this is real but less severe than it looks" or "I couldn't get past this point" — 
+feels like the actual skill this project was meant to build, more than the specific vulnerabilities themselves and is critical in my learning and transition to a cyber role.
+I also ran into real CI/CD issues along the way (tool version mismatches, a permissions error, a deprecated artefact API), which needed the same kind of diagnosis rather than tutorial-following to fix.
