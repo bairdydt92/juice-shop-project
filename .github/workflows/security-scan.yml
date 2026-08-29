@@ -31,7 +31,7 @@ jobs:
           path: semgrep-results.txt
 
   # ---------- DAST: needs Juice Shop actually running to attack it ----------
-zap-scan:
+  zap-scan:
     name: OWASP ZAP Baseline (DAST)
     runs-on: ubuntu-latest
     env:
