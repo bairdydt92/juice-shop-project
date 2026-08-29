@@ -1,0 +1,41 @@
+This write up covers fixing of a previously identified issue found on the Juice shop. The write up covers what was fixed and challenges/improvements made along the way
+
+Issue previously Identified:
+Hard-coded JWT value
+Category: CWE-798 
+OWASP: A04:2025 - Cryptographic Failure and A07:2025 - Authentication Failures
+Risk: Critical as token is easily found and publicly exposed. This could then be used to forge valid authentication tokens as any user without needing their credentials, even admin users. 
+Location: lib/insecurity.ts 
+
+SAST report identified a potential hard-coded JWT key in the lib/insecurity.ts file. I then traced this location and verified that there is a hardcoded RSA private key used to sign JWTs. 
+This is very dangerous as the token could be used by attackers to forge valid authentication tokens without needing admin access. 
+
+FIX:
+move the key to an environment variable or secrets manager
+rotate the key periodically in case it gets exposed (the existing key should be treated as compromised and existing users/sessions should be checked for authenticity of valid users/actions)
+Private keys should never be committed to version control or shared insecurely
+
+Iteration 1 of fix:
+Removed the hard-coded JWT token and created a new (secure) JWT token in an .env file (which was also added to .gitignored) and in CI in the GitHub Actions repository secret.
+A new key was generated with RSA-2048 scheme via openssl genrsa/openssl rsa -pubout.
+
+Issue with this solution:
+the fix relied on an error message and an empty string if the env variable wasn't called successfully however, Semgrep's scan still flagged this rule for JWT-hardcoded. This was a correct hit from the
+rule as an empty hard-coded string is still an exploitable hard-coded string. This then led me to Fix Iteration 2.
+
+Iteration 2 of fix:
+Quick app fail if JWT_Private_Key isn't set instead of failing later and revealing information to users. This was a success as the report no longer flagged the vulnerability upon next run. 
+
+During the course of this fix another issue was identified on the pipeline.
+
+Pipeline change:
+The Zap scan job originally pulled the public bkimminich/juice-shop docker image and not the local one I was working on. This means that the DAST was never checking the changes I was making.
+I then changed this to check out the repo,install dependencies and to run the app via npm start. This ensures the zap scan checks the right code. 
+
+Conclusion:
+JWT-hardcoded vulnerability was fixed after 2 iterations due to fallback on an empty string in the first iteration. A pipeline fix was required for one of the scans to ensure that they are scanning
+the correct codebase thus preventing false confidence. 
+The security scans were run again and both reports were verified to have no new issues resulting from this fix and confirming that the JWT issue has been resolved. 
+
+Future improvements:
+key rotation on a schedule is a recommended for a future improvement but has not been included within this fix. 
