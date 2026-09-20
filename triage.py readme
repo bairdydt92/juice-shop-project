@@ -1,0 +1,47 @@
+## Semgrep triage script
+
+`triage.py` is a small Python script that reads the JSON report from the
+Semgrep (SAST) step in this pipeline and turns it into a triage summary.
+
+### What it does
+- Sorts findings by severity (ERROR, WARNING/MEDIUM, INFO)
+- Counts findings by severity, by file, and by category
+  (pipeline config, application code, Juice Shop challenge snippets,
+  Terraform, npm config)
+- Lists ERROR findings in pipeline and application code, so there is a
+  short list to review first
+
+### How to run it
+1. Download the `semgrep-report` artifact from a workflow run and unzip it.
+2. Put `semgrep-results.json` in the same folder as `triage.py`.
+3. Run `python3 triage.py` (or `py triage.py` on Windows).
+
+### Sample output
+From my run: 47 findings [check against your latest run]:
+- By severity: 13 ERROR, 32 WARNING, 2 MEDIUM
+- By category: 18 pipeline, 13 application code, 10 challenge snippets,
+  4 Terraform, 2 npm config
+
+### What I found when triaging
+Juice Shop is intentionally vulnerable, so many findings in `routes/`,
+`server.ts` and `data/static/codefixes/` are likely deliberate challenge
+code rather than bugs to fix.
+
+The 18 pipeline findings split into two groups. Five are in
+`security-scan.yml`, which I wrote, so those are mine to fix. The rest are
+in workflow files that appear to come from upstream Juice Shop. The 18 pipeline 
+findings split into two groups. Five are in `security-scan.yml`, which I wrote, 
+so those are mine to fix. The rest are in workflow files that appear to come 
+from upstream Juice Shop.
+
+All five of mine are the same rule, `github-actions-mutable-action-tag`
+(lines 17, 32, 52, 64 and 76). Each step references an action by a tag
+such as `@v3`, and a tag can be repointed by the action's owner, so a
+compromised action could run malicious code in my pipeline. I plan to pin
+each one to a full commit SHA and re-run the scan to confirm the findings
+clear.
+
+### Limitations
+This is a learning project and a small script. It only reads Semgrep's
+JSON format, it doesn't deduplicate findings, and it doesn't read the
+ZAP results yet
