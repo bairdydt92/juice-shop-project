@@ -23,9 +23,9 @@ jobs:
       - name: Show results in log
         run: cat semgrep-results.txt
 
-      -name: Run Semgrep (JSON)
+      - name: Run Semgrep (JSON)
         run: semgrep scan --config p/owasp-top-ten --json --output semgrep-results.json
-        contine-on-error-: true
+        continue-on-error: true
 
       - name: Upload Semgrep report
         if: always()
